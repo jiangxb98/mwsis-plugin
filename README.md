@@ -2,4 +2,4 @@
 
 Open source soon.
 
-![image-20231203171901541](images\framwork.png)
+![image-20231203171901541](./images/framwork.png)
