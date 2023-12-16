@@ -1,6 +1,10 @@
 # <font size=5>MWSIS: Multimodal Weakly Supervised Instance Segmentation with 2D Box Annotations for Autonomous Driving</font>
 
-## <font size=4.5>Get the paper [arxiv](https://arxiv.org/abs/2312.06988).</font>
+⭐ Our MWSIS is acceped by the AAAI24.
+
+⭐ [Arxiv](https://arxiv.org/abs/2312.06988) and [Website](https://jiangxb98.github.io/mwsis.github.io/)
+
+![image-20231203171901541](F:\Pictures\TyporaPictures\framwork-17027008693301.png)
 
 ## <font size=4.5>ToDo</font>
 
@@ -64,8 +68,6 @@ Please use `mwsis_plugin/tools/data_converter/parallel_mask3d_eval_local.py`
 
   Please use funcition `connected_components()` to replace function `voxel_spccl3d()`. Later, we will change the CCL operator to the operator in the torchex library. Currently, sicpy library is used instead.
 
-
-
 ```bash
 # signle gpu
 python tools/train.py mwsis/config/mwsis_pts_model_config.py --work-dir <your filepath>
@@ -73,10 +75,6 @@ python tools/train.py mwsis/config/mwsis_pts_model_config.py --work-dir <your fi
 # multi gpu
 bash tools/dist_train.sh ...
 ```
-
-![image-20231203171901541](./images/framwork.png)
-
-
 
 ## <font size=4.5>Acknowledgments</font>
 
