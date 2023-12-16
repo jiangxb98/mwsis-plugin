@@ -4,7 +4,7 @@
 
 ⭐ [Arxiv](https://arxiv.org/abs/2312.06988) and [Website](https://jiangxb98.github.io/mwsis.github.io/)
 
-![image-20231203171901541](F:\Pictures\TyporaPictures\framwork-17027008693301.png)
+![framework](./images/framwork.png)
 
 ## <font size=4.5>ToDo</font>
 
