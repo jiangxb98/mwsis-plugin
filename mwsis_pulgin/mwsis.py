@@ -581,7 +581,7 @@ class MWSIS(Base3DDetector):
 
         if self.gt_box_type == 2 and points is not None:
             points = self.ccl(points, gt_bboxes, gt_labels, img_metas, pseudo_labels)  # [N, (C+2)]
-            points = self.ccl_torchex(points, gt_bboxes, gt_labels, img_metas, pseudo_labels)
+            # points = self.ccl_torchex(points, gt_bboxes, gt_labels, img_metas, pseudo_labels)
         if self.gt_box_type == 2:
             gt_bboxes_3d = gt_bboxes
             gt_labels_3d = gt_labels
