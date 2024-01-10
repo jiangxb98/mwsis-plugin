@@ -18,6 +18,7 @@
 ## <font size=4.5>News</font>
 
 - [23-12-16] The code for MWSIS-pts is released here.
+- [24-01-10] The code for MWSIS-pts is released here.
 
 ## <font size=4.5>Instructions for MWSIS.</font>
 
