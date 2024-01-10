@@ -5,7 +5,7 @@ import numpy as np
 from os import path as osp
 import torch
 from torch.nn import functional as F
-from scipy.sparse.csgraph import connected_components  # CCL
+from scipy.sparse.csgraph import connected_components as connected_components_  # CCL
 import os
 import mmcv
 from mmcv.ops import Voxelization
@@ -29,7 +29,7 @@ from mmdet.core.bbox.iou_calculators import bbox_overlaps
 import torch_scatter
 from mmcv.image import tensor2imgs
 from deploy3d.symfun.ops.ccl import VoxelSPCCL3D, voxel_spccl3d
-
+from torchex import connected_components
 def gen_shape(pc_range, voxel_size):
     voxel_size = np.array(voxel_size).reshape(-1, 3)
     ncls = len(voxel_size)
@@ -104,7 +104,7 @@ def find_connected_componets(points, batch_idx, dist):
             dist_mat = (dist_mat ** 2).sum(2) ** 0.5
             adj_mat = dist_mat < dist
             adj_mat = adj_mat.cpu().numpy()
-            c_inds = connected_components(adj_mat, directed=False)[1]
+            c_inds = connected_components_(adj_mat, directed=False)[1]
             c_inds = torch.from_numpy(c_inds).to(device).int() + base
             base = c_inds.max().item() + 1
             components_inds[batch_mask] = c_inds
@@ -123,7 +123,7 @@ def find_connected_componets_single_batch(points, batch_idx, dist):
     # dist_mat = torch.cdist(this_points[:, :2], this_points[:, :2], p=2)
     adj_mat = dist_mat < dist
     adj_mat = adj_mat.cpu().numpy()
-    c_inds = connected_components(adj_mat, directed=False)[1]
+    c_inds = connected_components_(adj_mat, directed=False)[1]
     c_inds = torch.from_numpy(c_inds).to(device).int()
 
     return c_inds
@@ -581,7 +581,7 @@ class MWSIS(Base3DDetector):
 
         if self.gt_box_type == 2 and points is not None:
             points = self.ccl(points, gt_bboxes, gt_labels, img_metas, pseudo_labels)  # [N, (C+2)]
-
+            points = self.ccl_torchex(points, gt_bboxes, gt_labels, img_metas, pseudo_labels)
         if self.gt_box_type == 2:
             gt_bboxes_3d = gt_bboxes
             gt_labels_3d = gt_labels
@@ -1008,7 +1008,7 @@ class MWSIS(Base3DDetector):
         pts_semantic_mask_ccl = False# use the ccl to cluster semantic gt to get the instance
         eval_coarse_3d_mask = False
         eval_2d_gt_mask = False      # test gen 2d gt mask is accurate (is yes)
-        eval_all_points = False       # default: False, 只评估在图片上的点云
+        eval_all_points = False      # default: False, 只评估在图片上的点云
 
         if is_visul:
             eval_2d = False; eval_3d_semantic = True; eval_3d_mask = True; ring_segment_correct = False; self.use_ema=False; is_visul = True
@@ -1156,7 +1156,7 @@ class MWSIS(Base3DDetector):
         
         return results_list
 
-    # 检查完成 Return：list(zip(bbox_results, mask_results))
+    # Return：list(zip(bbox_results, mask_results))
     def simple_test_img(self, img_feats, img_metas, proposals=None, rescale=False):
         feat = img_feats
         outputs = self.img_bbox_head.simple_test(
@@ -1439,40 +1439,40 @@ class MWSIS(Base3DDetector):
                 xyz = top_points[:,0:3][xyz_mask]
                 offsets = results_list[i]['offsets'][xyz_mask].to(xyz.device) # cuda
                 center_pred = xyz + offsets
-                # c_inds = find_connected_componets_single_batch(center_pred.cpu(), None, dist[j])
+                c_inds = find_connected_componets_single_batch(center_pred.cpu(), None, dist[j])
                 # use spccl
-                device = center_pred.device
-                cls_id = j
-                class_id = torch.zeros((xyz.shape[0]), device=device, dtype=torch.int32)
-                batch_id = torch.zeros((xyz.shape[0]), device=device, dtype=torch.int32)
-                nums = xyz_mask.sum().to(device)
-                if nums < 100:
-                    num_act_in = 100
-                elif nums < 1000:
-                    num_act_in = int((nums//100)*100+100)
-                elif nums < 10000:
-                    num_act_in = int((nums//1000)*1000+1000)
-                elif nums < 100000:
-                    num_act_in = int((nums//10000)*10000+10000)
-                else:
-                    num_act_in = 300000
-                center_pred = points_padding(center_pred, num_act_in, 0).contiguous()
-                class_id = points_padding(class_id, num_act_in, -1)
-                batch_id = points_padding(batch_id, num_act_in, -1)
-                spatial_shape = gen_shape(self.point_cloud_range, self.voxel_size[cls_id])
-                cluster_inds, _, _, _ = voxel_spccl3d(center_pred, 
-                                batch_id.type(torch.int32),
-                                class_id.type(torch.int32),
-                                nums.type(torch.int32),
-                                self.kernel_size_[cls_id],
-                                self.point_cloud_range,
-                                [1, 1, 1],
-                                self.voxel_size[cls_id],
-                                self.dist_size[cls_id],
-                                spatial_shape,
-                                1,
-                                1)
-                c_inds = cluster_inds[0 : nums]
+                # device = center_pred.device
+                # cls_id = j
+                # class_id = torch.zeros((xyz.shape[0]), device=device, dtype=torch.int32)
+                # batch_id = torch.zeros((xyz.shape[0]), device=device, dtype=torch.int32)
+                # nums = xyz_mask.sum().to(device)
+                # if nums < 100:
+                #     num_act_in = 100
+                # elif nums < 1000:
+                #     num_act_in = int((nums//100)*100+100)
+                # elif nums < 10000:
+                #     num_act_in = int((nums//1000)*1000+1000)
+                # elif nums < 100000:
+                #     num_act_in = int((nums//10000)*10000+10000)
+                # else:
+                #     num_act_in = 300000
+                # center_pred = points_padding(center_pred, num_act_in, 0).contiguous()
+                # class_id = points_padding(class_id, num_act_in, -1)
+                # batch_id = points_padding(batch_id, num_act_in, -1)
+                # spatial_shape = gen_shape(self.point_cloud_range, self.voxel_size[cls_id])
+                # cluster_inds, _, _, _ = voxel_spccl3d(center_pred, 
+                #                 batch_id.type(torch.int32),
+                #                 class_id.type(torch.int32),
+                #                 nums.type(torch.int32),
+                #                 self.kernel_size_[cls_id],
+                #                 self.point_cloud_range,
+                #                 [1, 1, 1],
+                #                 self.voxel_size[cls_id],
+                #                 self.dist_size[cls_id],
+                #                 spatial_shape,
+                #                 1,
+                #                 1)
+                # c_inds = cluster_inds[0 : nums]
 
                 c_inds = c_inds + 1 + tmp_inds[j]
                 tmp_inds.append(c_inds.max())
@@ -1620,7 +1620,7 @@ class MWSIS(Base3DDetector):
             cls_mask = segment_3d == i
             sets, counts = torch.unique(run_id[cls_mask], return_counts=True)
             for j in range(len(sets)):
-                if sets[j] == -1 or i == 1:  # run 对于行人的效果有反作用
+                if sets[j] == -1 or i == 1:  # rs reduces accuracy for pedestrians
                     continue
                 if (bg_run_id == sets[j]).sum() > counts[j]:  # (bg_run_id == sets[j]).sum() > counts[j] * 1.5
                     new_segment_3d[run_id == sets[j]] = self.num_classes
@@ -1718,6 +1718,7 @@ class MWSIS(Base3DDetector):
             show_result(points, None, pred_bboxes, out_dir, file_name)
      
     def ccl(self, points, gt_bboxes, gt_labels, img_metas, pseudo_labels):
+        dist = [0.6, 0.1, 0.4]
         if pseudo_labels is not None:
             if pseudo_labels[0].shape[1] > 5:
                 for i in range(len(pseudo_labels)):
@@ -1747,41 +1748,10 @@ class MWSIS(Base3DDetector):
                         continue
                     cls_id = gt_labels[(batch_nums * i + j)][b].long()
                     # must class_id = 0
-                    class_id = torch.zeros((in_box_mask.sum().long()), device=device, dtype=torch.int32)
                     xyz = batch_points[in_box_mask][:, 0:3].contiguous()
                     batch_id = torch.zeros((xyz.shape[0]), device=device, dtype=torch.int32)
-                    nums = in_box_mask.sum()
-                    spatial_shape = gen_shape(self.point_cloud_range, self.voxel_size[cls_id])
-                    if nums < 100:
-                        num_act_in = 100
-                    elif nums < 1000:
-                        num_act_in = int((nums//100)*100+100)
-                    elif nums < 10000:
-                        num_act_in = int((nums//1000)*1000+1000)
-                    else:
-                        num_act_in = int((nums//10000)*10000+10000)
-                    xyz = points_padding(xyz, num_act_in, 0).contiguous()
-                    class_id = points_padding(class_id, num_act_in, -1)
-                    batch_id = points_padding(batch_id, num_act_in, -1)
-
                     # If cuda operator is not available, use this function
-                    # dist = [0.6, 0.1, 0.4]
-                    # cluster_inds = find_connected_componets_single_batch(xyz, batch_id, dist[cls_id])[0 : nums]
-
-                    # cuda op
-                    cluster_inds, _, _, _ = voxel_spccl3d(xyz,
-                                                        batch_id.type(torch.int32),
-                                                        class_id.type(torch.int32),
-                                                        nums.type(torch.int32),
-                                                        self.kernel_size_[cls_id],
-                                                        self.point_cloud_range,
-                                                        [1, 1, 1],
-                                                        self.voxel_size[cls_id],
-                                                        self.dist_size[cls_id],
-                                                        spatial_shape,
-                                                        1,
-                                                        1)
-                    cluster_inds = cluster_inds[0 : nums]
+                    cluster_inds = find_connected_componets_single_batch(xyz, batch_id, dist[cls_id])
                     cluster_sets, cluster_invs, cluster_counts = torch.unique(cluster_inds, return_inverse=True, return_counts=True)
                     c_max_inds = cluster_counts.argmax()
                     c_mask = cluster_invs==cluster_sets[c_max_inds]
@@ -1797,3 +1767,68 @@ class MWSIS(Base3DDetector):
             points[i][:, 17][bg_mask] = 0
             points[i] = torch.cat((points[i], box_flag[:, 0:2]), dim=1)
         return points
+    
+    def ccl_torchex(self, points, gt_bboxes, gt_labels, img_metas, pseudo_labels):
+        dist = [0.6, 0.1, 0.4]
+        num_points = [5000, 2000, 2000]
+        if pseudo_labels is not None:
+            if pseudo_labels[0].shape[1] > 5:
+                for i in range(len(pseudo_labels)):
+                    points[i] = torch.cat((points[i], pseudo_labels[i][:, 5:7]), dim=1)  # 20-->22
+                if self._iter < 5:
+                    print('load ccl results from minio')
+                return points
+        device = points[0].device
+        batch_nums = int(len(gt_bboxes) / len(img_metas))
+        for i in range(len(img_metas)):
+            batch_points = points[i]
+            points_index = torch.arange(0, len(batch_points), device=device, dtype=torch.int32)
+            box_flag = torch.zeros((batch_points.shape[0], 3), device=device, dtype=torch.int32)
+            for j in range(batch_nums):
+                if len(gt_bboxes[(batch_nums * i + j)])==0:
+                    continue
+                for b, gt_bbox in enumerate(gt_bboxes[(batch_nums * i + j)]):
+                    gt_mask1 = (((batch_points[:, 12] >= gt_bbox[0]) & (batch_points[:, 12] < gt_bbox[2])) &
+                                ((batch_points[:, 14] >= gt_bbox[1]) & (batch_points[:, 14] < gt_bbox[3])  &
+                                (batch_points[:, 10]==j)))
+                    gt_mask2 = (((batch_points[:, 13] >= gt_bbox[0]) & (batch_points[:, 13] < gt_bbox[2])) &
+                                ((batch_points[:, 15] >= gt_bbox[1]) & (batch_points[:, 13] < gt_bbox[3])  &
+                                (batch_points[:, 11]==j)))
+                    gt_mask = gt_mask1 | gt_mask2
+                    in_box_mask = gt_mask & (batch_points[:, 17] > 0)
+                    if in_box_mask.sum() == 0:
+                        continue
+                    cls_id = gt_labels[(batch_nums * i + j)][b].long()
+                    xyz = batch_points[in_box_mask][:, 0:3].contiguous()
+
+                    cluster_inds = connected_components(xyz, None, dist[cls_id], num_points[cls_id], 2, False)
+                    # cluster_inds_v2 = find_connected_componets_single_batch(xyz, batch_id, dist[cls_id])
+
+                    cluster_sets, cluster_invs, cluster_counts = torch.unique(cluster_inds, return_inverse=True, return_counts=True)
+                    c_max_inds = cluster_counts.argmax()
+                    c_mask = cluster_invs==cluster_sets[c_max_inds]
+
+                    # cluster_sets, cluster_invs, cluster_counts = torch.unique(cluster_inds_v2, return_inverse=True, return_counts=True)
+                    # c_max_inds = cluster_counts.argmax()
+                    # c_mask_v2 = cluster_invs==cluster_sets[c_max_inds]
+                    # are_euqal = torch.equal(c_mask, c_mask_v2)
+                    # if are_euqal:
+                    #     print("same results")
+                    # else:
+                    #     print("\n", c_mask, "\n", c_mask.sum())
+                    #     print("\n", c_mask_v2, "\n", c_mask_v2.sum())
+                    #     print("\n", c_mask==c_mask_v2)
+
+                    c_mask_ = box_flag[:, 2][in_box_mask] == 0
+                    max_in_box_index = points_index[in_box_mask][c_mask & c_mask_].long()
+                    box_flag[:, 2][max_in_box_index] = 1
+                    box_flag[:, 0][max_in_box_index] = j*1000+b+1
+                    max_in_box_index_2 = points_index[in_box_mask][c_mask & (~c_mask_)].long()
+                    box_flag[:, 1][max_in_box_index_2] = j*1000+b+1                    
+            box_flag[:, 0:2] = box_flag[:, 0:2] - 1
+            fg_mask = (box_flag[:, 0] != -1) |  (box_flag[:, 1] != -1)
+            bg_mask = ~(fg_mask | (points[i][:, 17]==-1))
+            points[i][:, 17][bg_mask] = 0
+            points[i] = torch.cat((points[i], box_flag[:, 0:2]), dim=1)
+        return points
+    

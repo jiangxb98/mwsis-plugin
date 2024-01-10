@@ -6,8 +6,6 @@ from pycocotools.cocoeval import COCOeval
 from pycocotools.coco import COCO
 import numpy as np
 from io import BytesIO
-import minio
-import pymongo
 import time
 import mmcv
 import os
@@ -61,7 +59,7 @@ class ConvertToCOCO:
         return ret
 
     def get_all(self):
-        # json文件格式
+        # json format
         dataset_dict = {
             'info':{},
             'images':[],
@@ -94,7 +92,7 @@ class ConvertToCOCO:
         else:
             results = mmcv.track_parallel_progress(self.get_one, self.ret, self.workers)
         
-        print("完成读取")
+        print("Finished load")
 
         for image, annotations, pred in mmcv.track_iter_progress(results):
             dataset_dict['images'].extend(image)
@@ -104,7 +102,7 @@ class ConvertToCOCO:
             dataset_dict['annotations'][i]['id'] = int(i+1)
         with open(self.json_path,'w') as f:
             json.dump(dataset_dict, f, indent=4, ensure_ascii=False, cls=MyEncoder)
-        print('\n保存路径: {}'.format(self.json_path))
+        print('\nSave path: {}'.format(self.json_path))
         with open(self.result_path,'w') as f:
             json.dump(pred_list, f, indent=4, ensure_ascii=False, cls=MyEncoder)
 
@@ -134,24 +132,25 @@ class ConvertToCOCO:
         semseg_path_old = info['semseg_info']['path']
         pts_path = info['pts_info']['path']
 
-        # 获得点云
+        # obtain point cloud
         points = np.fromfile(pts_path, dtype=np.float32, count=-1).reshape([-1, 16])
         # have a bug need to fix
-        # this is temp debug
+        # There is a problem with the order of the point cloud array
         points[:, 3] = np.tanh(points[:, 3])
         points[:, 5:8] = points[:, [6, 7, 5]]
         
         points_class = get_points_type(self.coord_type)
         points = points_class(points, points_dim=points.shape[-1])
-        points_mask = points.in_range_3d(self.pcd_range).numpy()  # 去除超过范围的点
+        points_mask = points.in_range_3d(self.pcd_range).numpy()  # Remove points that are out of range
+
         points = points.tensor.numpy()
 
-        # 指定获取的点云
+        # Get the point cloud that falls on the image and the top LiDAR
         in_front_mask = (points[:, 10]!=-1) | (points[:, 11]!=-1)
         top_mask = points[:, 6] == 0
         out_mask = top_mask & in_front_mask & points_mask
 
-        # 获得语义标签
+        # Get the panseg label
         if not semseg_path_old.endswith('.npy'):
             semseg_path = semseg_path_old + '.npy'
 
@@ -159,7 +158,7 @@ class ConvertToCOCO:
         pts_annos = np.load(BytesIO(annos_bytes))
         semantic = pts_annos['semseg_cls'][out_mask].reshape(1, -1).astype(np.int8)
         instance = pts_annos['instance_id'][out_mask].reshape(1, -1).astype(np.int)
-        # 获得图片id
+        # Get the image id
         split_path = semseg_path_old.split('/')[-1]
         image_id = int(split_path)
         height, width = instance.shape

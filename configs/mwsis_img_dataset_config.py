@@ -5,16 +5,17 @@ img_panseg_tainval_pth = "data/waymo/kitti_format/training"  # data/waymo/kitti_
 pts_trainval_pth = "data/waymo/kitti_format/training/velodyne"
 img_trainval_pth = "data/waymo/kitti_format/training"  # data/waymo/kitti_format/training/image_0
 
-pts_tain_info_index = "data/waymo/kitti_format/training/pts_panseg_index_train.pkl"
-pts_val_info_index = "data/waymo/kitti_format/training/pts_panseg_index_val.pkl"
-pts_frame_infos = "data/waymo/kitti_format/training/frame_infos"
+img_tain_info_index = "data/waymo/kitti_format/training/img_panseg_index_train.pkl"
+img_val_info_index = "data/waymo/kitti_format/training/img_panseg_index_val.pkl"
+frame_infos = "data/waymo/kitti_format/training/frame_infos"
 
 file_client_args = dict(backend='disk')
 pseudo_labels_client_args = dict(backend='disk')
+
 # switch eval mode
-eval_2d = False
-eval_3d = True
-eval_3d_mask = True
+eval_2d = True
+eval_3d = False
+eval_3d_mask = False
 
 eval_keys=['points','img', 'gt_bboxes', 'gt_labels', 'gt_bboxes_3d', 'gt_labels_3d']
 
@@ -44,10 +45,10 @@ train_pipeline = [
         file_client_args=file_client_args),
     dict(
         type='LoadAnnos3D',
-        with_bbox_3d=True,
-        with_label_3d=True,
-        with_seg_3d=True,
-        with_mask_3d=True,
+        with_bbox_3d=False,
+        with_label_3d=False,
+        with_seg_3d=False,
+        with_mask_3d=False,
         file_client_args=file_client_args),
     # not complete this part of the code
     # dict(
@@ -61,8 +62,8 @@ train_pipeline = [
         type='LoadAnnos',
         with_bbox=True,
         with_label=True,
-        with_mask=False,
-        with_seg=False,
+        with_mask=True,
+        with_seg=True,
         file_client_args=file_client_args),
     # dict(
     #     type='LoadAnnosLwsis',
@@ -71,8 +72,8 @@ train_pipeline = [
     dict(
         type='FilterAndReLabel',
         filter_calss_name=class_names,
-        with_mask=False,
-        with_seg=False,
+        with_mask=True,
+        with_seg=True,
         with_mask_3d=False,
         with_seg_3d=False,
         filter_class_name=class_names),
@@ -130,9 +131,10 @@ train_pipeline = [
     dict(type='DefaultFormatBundle3D', class_names=class_names),
     dict(
         type='Collect3D', 
-        keys=['img', 'gt_bboxes', 'gt_labels', #'gt_semantic_seg', 'gt_masks',
-              'points', 'gt_bboxes_3d', 'gt_labels_3d',
-            #   'pseudo_labels',
+        keys=['img', 'gt_bboxes', 'gt_labels', 'gt_semantic_seg', 'gt_masks',
+              'points', 
+              #'gt_bboxes_3d', 'gt_labels_3d',
+              #'pseudo_labels',
               'history_labels',
               #'pts_semantic_mask','pts_instance_mask'
               ],
@@ -222,8 +224,8 @@ data = dict(
     workers_per_gpu=4,  # data load process
     train=dict(
         type=dataset_type,
-        info_index_path=pts_tain_info_index,
-        info_path=pts_frame_infos,
+        info_index_path=img_tain_info_index,
+        info_path=frame_infos,
         classes=class_names,
         modality=input_modality,
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
@@ -245,8 +247,8 @@ data = dict(
         pipeline=train_pipeline),
     val=dict(
         type=dataset_type,
-        info_index_path=pts_val_info_index,
-        info_path=pts_frame_infos,
+        info_index_path=img_tain_info_index,
+        info_path=frame_infos,
         datainfo_client_args=pts_trainval_pth,
         pipeline=test_pipeline,
         modality=input_modality,
@@ -265,8 +267,8 @@ data = dict(
         ),
     test=dict(
         type=dataset_type,
-        info_index_path=pts_val_info_index,
-        info_path=pts_frame_infos,
+        info_index_path=img_tain_info_index,
+        info_path=frame_infos,
         datainfo_client_args=pts_trainval_pth,
         pipeline=test_pipeline,
         modality=input_modality,

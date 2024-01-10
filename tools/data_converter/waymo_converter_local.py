@@ -168,6 +168,7 @@ class Waymo2KITTI(object):
         for clip_index in mmcv.track_iter_progress(resutls):
             frames_infos.extend(clip_index)
 
+        # All frame_info save to the my_waymo_xxx(train/test).pkl. However, the results of each frame are read separately in the dataset.
         parts = self.save_dir.split('/')[: -1]
         all_infos_save_path = '/' + osp.join(*parts) + '/my_waymo_' + prefix + '.pkl'
         with open(all_infos_save_path, 'wb') as f:
@@ -218,10 +219,10 @@ class Waymo2KITTI(object):
             if not self.test_mode:
                 # default
                 # self.save_label(frame, file_idx, frame_idx)
-                # by jiangxb
-                self.save_label_my(frame, file_idx, frame_idx, points, frame_info, gtdb_tracking)
+                # mwsis
+                self.save_label_mwsis(frame, file_idx, frame_idx, points, frame_info, gtdb_tracking)
                 
-                # gtdb_info = self.save_label_my(frame, file_idx, frame_idx, points, frame_info, gtdb_tracking)
+                # gtdb_info = self.save_label_mwsis(frame, file_idx, frame_idx, points, frame_info, gtdb_tracking)
                 # cat_gtdb(gtdb_infos, gtdb_info)
             
             frame_infos.append(frame_info)
@@ -438,8 +439,9 @@ class Waymo2KITTI(object):
         ego_pose = np.array(frame.pose.transform).reshape(4, 4)  # is in self.save_pose()
         frame_info['ego_pose'] = ego_pose
 
-        point_cloud.tofile(pc_path)  # npz,npy,bin speed test ?  # np.fromfile(pc_path, dtype=np.float32, count=-1).reshape([-1, 16])
+        point_cloud.tofile(pc_path)  # npz,npy,bin load speed test ?  # np.fromfile(pc_path, dtype=np.float32, count=-1).reshape([-1, 16])
 
+        # sweeps
         sweeps = []
         for f in frame_infos[-self.sweeps:][::-1]:
             sweep = f['pts_info']
@@ -484,7 +486,7 @@ class Waymo2KITTI(object):
 
         return point_cloud
 
-    def save_label_my(self, frame, file_idx, frame_idx, points, frame_info, gtdb_tracking):
+    def save_label_mwsis(self, frame, file_idx, frame_idx, points, frame_info, gtdb_tracking):
 
         sample_idx = self.sample_index(file_idx, frame_idx)
 

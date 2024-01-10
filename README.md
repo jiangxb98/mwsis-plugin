@@ -13,7 +13,7 @@
 - [ ] Improve data processing
 - [ ] Reorganize the current code (pts).
 - [ ] Replace the CCL.
-- [ ] Release the MWSIS-img code which is same as the MWSIS-pts.
+- [x] Release the MWSIS-img code which is same as the MWSIS-pts.
 
 ## <font size=4.5>News</font>
 
@@ -54,9 +54,9 @@ mv .pth .cache/torch/hub/checkpoints/
 
 **Train data**
 
-Please follow the tutorial given by [mmdet3d](https://github.com/open-mmlab/mmdetection3d) to process the data, and then use our [waymo conversion code](./tools/data_converter/waymo_converter_local.py) to process the data. (Note: You should mv `./mwsis_plugin/tools/data_converter/waymo_converter_local.py` `./tools/data_converter`)
+Please follow the tutorial given by [mmdet3d](https://github.com/open-mmlab/mmdetection3d) to process the data, and then use our [waymo conversion code](./tools/data_converter/waymo_converter_local.py) to process the data. (Note: You should `mv ./mwsis_plugin/tools/data_converter/waymo_converter_local.py ./tools/data_converter`)
 
-**Val data**
+**Val data generation**
 
 Please use `mwsis_plugin/tools/data_converter/parallel_mask3d_eval_local.py`
 
@@ -67,6 +67,9 @@ Please use `mwsis_plugin/tools/data_converter/parallel_mask3d_eval_local.py`
 + **About CCL**
 
   Please use funcition `connected_components()` to replace function `voxel_spccl3d()`. Later, we will change the CCL operator to the operator in the torchex library. Currently, sicpy library is used instead.
++ **Warning**
+
+  Through experiment, we found that the torchex.connected_components unable to get the same results as the scipy.sparse.csgraph.connected_components.
 
 ```bash
 # signle gpu

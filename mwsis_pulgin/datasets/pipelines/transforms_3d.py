@@ -659,10 +659,10 @@ class FilterAndReLabel:
 
     def __call__(self, results):
         '''return the new semantic label, and instance only filtered
-        - label: Car=0, Pedestrian=1, Cyclist=2
-        - seg -1 is uncorrelated, instance only filtered
+            label: Car=0, Pedestrian=1, Cyclist=2
+            seg -1 is uncorrelated, instance only filtered
         '''
-        # results['ori_gt_masks'] = results['gt_masks'].copy()
+        
         if 'img' in results.keys():
             if isinstance(results['img'], np.ndarray):
                 results = self._get_single_annos(results)
@@ -673,8 +673,8 @@ class FilterAndReLabel:
                 if False:
                     import cv2
                     img = results['img'][i]
-                    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
                     gt_bboxes = results['gt_bboxes'][i]
+                    
                     for b, gt_bbox in enumerate(gt_bboxes):
                         cv2.rectangle(img, (int(gt_bbox[0]), int(gt_bbox[1])), (int(gt_bbox[2]), int(gt_bbox[3])), (0, 255, 0), 2)
                     cv2.imwrite('img{}.jpg'.format(i), img)
@@ -1679,7 +1679,7 @@ class FilterPointsByImage:
 
         return results
 
-    def load_ccl_labels(self, results):
+    def load_ring_segment_id(self, results):
         points = results['points'].tensor.numpy()
         ccl_id = results['pseudo_labels'][:, 0].reshape(-1, 1)
         assert len(ccl_id) == len(points)
@@ -1698,7 +1698,7 @@ class FilterPointsByImage:
                 #     results = self.assign_pseudo_label(results)
                 # else:
                 if self.use_pseudo_label and 'pseudo_labels' in results.keys():
-                    results = self.load_ccl_labels(results)
+                    results = self.load_ring_segment_id(results)
                 else:
                     results = self.range_seg_ccl(results)  # 全点云分段，不在图片上的也可以分段
                 roi_points, results = self.get_in_2d_box_points(results)  # (gt_box的数量, 3) 不在2dbox内的点的points的fg_points标志位置-1
@@ -2494,7 +2494,7 @@ class FilterPointByMultiImage:
         else:
             return False
             
-    def load_ccl_labels(self, results):
+    def load_ring_segment_id(self, results):
         points = results['points'].tensor.numpy()
         run_id = results['pseudo_labels'][:, 0].reshape(-1, 1).astype(np.float64)
         assert len(run_id) == len(points)
@@ -2510,7 +2510,7 @@ class FilterPointByMultiImage:
             results = self.filter_points(results)
             if self.training:
                 if self.use_pseudo_label and 'pseudo_labels' in results.keys():
-                    results = self.load_ccl_labels(results)   # get run id
+                    results = self.load_ring_segment_id(results)   # get ring segment id
                 else:
                     results = self.depth_clustering_segment(results)     # get run id
                     
@@ -3496,13 +3496,11 @@ class LoadHistoryLabel:
                 use_history_labels=False,
                 num_classes=3,
                 history_nums=4,
-                use_sam_labels=False,
                 only_img_points=True):  # only load points map to 2D images
         self.coord_type = coord_type
         self.use_history_labels = use_history_labels
         self.num_classes = num_classes
         self.history_nums = history_nums
-        self.use_sam_labels = use_sam_labels
         self.only_img_points = only_img_points
 
     def load_history_labels(self, results):
@@ -3541,6 +3539,29 @@ class LoadHistoryLabel:
         
         results['history_labels'] = labels
         return results
+    
+    def __call__(self, results):
+        if self.use_history_labels:
+            results = self.load_history_labels(results)
+        if self.use_sam_labels:
+            results = self.load_sam_labels(results)
+        return results
+
+@PIPELINES.register_module(force=True)
+class LoadSamLabel:
+    """
+    (Opotional) Load history points.
+    (Opotional) Load sam labels.
+    """
+    def __init__(self, 
+                coord_type='LIDAR',
+                num_classes=3,
+                use_sam_labels=False,
+                only_img_points=True):  # only load points map to 2D images
+        self.coord_type = coord_type
+        self.num_classes = num_classes
+        self.use_sam_labels = use_sam_labels
+        self.only_img_points = only_img_points
 
     # need to finish sam
     def load_sam_labels(self, results):
@@ -3593,8 +3614,6 @@ class LoadHistoryLabel:
         return results
     
     def __call__(self, results):
-        if self.use_history_labels:
-            results = self.load_history_labels(results)
         if self.use_sam_labels:
             results = self.load_sam_labels(results)
         return results

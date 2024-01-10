@@ -43,14 +43,13 @@ class LoadPoints(object):
             points = np.fromfile(token, dtype=np.float32, count=-1).reshape([-1, 16])
 
         # have a bug need to fix
-        # this is temp debug
+        # swap the dim
         points[:, 3] = np.tanh(points[:, 3])
-        points[:, 5:8] = points[:, [6,7,5]]
+        points[:, 5:8] = points[:, [6, 7, 5]]
         return points
 
     def __call__(self, results):
         token = results['pts_info']['path']
-        # load points from oss
         points = self._load_points(results, token)
         if self.remove_close:
             points = self._remove_close(points)
@@ -282,9 +281,6 @@ class LoadImages(object):
         # not need loader, use mmcv.imfrombytes
         # img = results['img_info']['img_loader'](results, pts_bytes)
         img = mmcv.imfrombytes(pts_bytes, flag=self.color_type, channel_order='bgr')
-        # img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        # import tensorflow as tf
-        # tf.image.decode_jpeg(pts_bytes) # both two function have the same size (1280,1920,3) but have tiny distinction
         return img
 
     def __call__(self, results):
@@ -302,7 +298,7 @@ class LoadImages(object):
             results['filename'].append(filename)
             results['img_shape'].append(img.shape)
             results['ori_shape'].append(img.shape)
-            if 'lidar2img' in results.keys() and len(results['img_info']['img_path_info'][i]['lidar2img'])!=0:
+            if 'lidar2img' in results.keys() and len(results['img_info']['img_path_info'][i]['lidar2img']) != 0:
                 results['lidar2img'].append(results['img_info']['img_path_info'][i]['lidar2img'])
         return results
     
