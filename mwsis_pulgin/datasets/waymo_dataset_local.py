@@ -24,7 +24,7 @@ from pycocotools.coco import COCO
 from datetime import datetime
 from waymo_open_dataset import dataset_pb2 as open_dataset
 import pickle
-
+import re
 try:
     from waymo_open_dataset.protos import segmentation_metrics_pb2
     from waymo_open_dataset.protos import segmentation_submission_pb2
@@ -414,48 +414,42 @@ class MwsisWaymoDataset(Custom3DDataset):
             img_mask_preds = [out['img_mask'] for out in results if out.get('img_mask') is not None]
             img_bboxes_preds = [out['img_bbox'] for out in results if out.get('img_bbox') is not None]
             assert len(img_metas) == len(img_mask_preds)
+        
         results_mask_2d = self.format_2d_mask(img_mask_preds, img_bboxes_preds, img_metas)
 
-        # results_mask_2d_path = '/root/3D/work_dirs/results/mask_2d_preds.json'
-        # results_mask_2d_path = '/home/jiangguangfeng/桌面/codebase/mask_2d_preds.json'
-        results_mask_2d_path = f'{pklfile_prefix}_mask_2d_preds.json'
-        if 'img_preds' in results[0].keys():
-            if osp.exists('/root/3D/work_dirs/dataset_infos/waymo_lwsis_val1.0_my.json'):
-                # validation_path = '/root/3D/work_dirs/dataset_infos/validation_instance_infos_lwsis.json'
-                validation_path = '/root/3D/work_dirs/dataset_infos/waymo_lwsis_val1.0_my.json'
-                results_mask_2d_path = '/root/3D/work_dirs/results/mask_2d_preds{}.json'.format(datetime.now().strftime("%m-%d=%H:%M"))
-            elif osp.exists('/home/jiangguangfeng/桌面/codebase/waymo_lwsis_val1.0_my.json'):
-                validation_path = '/home/jiangguangfeng/桌面/codebase/waymo_lwsis_val1.0_my.json'
-                results_mask_2d_path = '/home/jiangguangfeng/桌面/codebase/mask_2d_preds.json'
-        else:
-            if osp.exists('/root/3D/work_dirs/dataset_infos/validation_instance_infos.json'):
-                validation_path = '/root/3D/work_dirs/dataset_infos/validation_instance_infos_lwsis.json'
-                results_mask_2d_path = '/root/3D/work_dirs/results/mask_2d_preds.json'
-            elif osp.exists('/home/jiangguangfeng/桌面/codebase/validation_instance_infos.json'):
-                validation_path = '/home/jiangguangfeng/桌面/codebase/validation_instance_infos_final.json'
-                results_mask_2d_path = '/home/jiangguangfeng/桌面/codebase/mask_2d_preds.json'
-        
-        print_log("save results path {}".format(results_mask_2d_path), logger=logger) 
-        with open(results_mask_2d_path,'w') as f:
-            json.dump(results_mask_2d, f, indent=4, ensure_ascii=False, cls=MyEncoder)
+        if results_mask_2d is not None:
+            results_mask_2d_path = f'{pklfile_prefix}_mask_2d_preds.json'
+            if 'img_preds' in results[0].keys():
+                if osp.exists('/root/3D/work_dirs/dataset_infos/waymo_lwsis_val1.0_my.json'):
+                    # validation_path = '/root/3D/work_dirs/dataset_infos/validation_instance_infos_lwsis.json'
+                    validation_path = '/root/3D/work_dirs/dataset_infos/waymo_lwsis_val1.0_my.json'
+                    results_mask_2d_path = '/root/3D/work_dirs/results/mask_2d_preds{}.json'.format(datetime.now().strftime("%m-%d=%H:%M"))
+            else:
+                if osp.exists('/root/3D/work_dirs/dataset_infos/validation_instance_infos.json'):
+                    validation_path = '/root/3D/work_dirs/dataset_infos/validation_instance_infos_lwsis.json'
+                    results_mask_2d_path = '/root/3D/work_dirs/results/mask_2d_preds.json'
+            
+            print_log("save results path {}".format(results_mask_2d_path), logger=logger)
+            with open(results_mask_2d_path,'w') as f:
+                json.dump(results_mask_2d, f, indent=4, ensure_ascii=False, cls=MyEncoder)
 
-        annType = ['segm','bbox','keypoints']
-        annType = annType[0]  # specify type here
-        cocoGt = COCO(validation_path)
-        cocoDt = cocoGt.loadRes(results_mask_2d_path)
-        cocoEval = COCOeval_(cocoGt, cocoDt, annType)
-        # cocoEval.params.imgIds  = imgIds
-        cocoEval.evaluate()
-        cocoEval.accumulate()
-        map = cocoEval.summarize(logger=logger)
-        # result = cocoEval.summarize(catId=[0,1], logger=logger)
-        result0 = cocoEval.summarize(catId=0, logger=logger)
-        result1 = cocoEval.summarize(catId=1, logger=logger)
-        result2 = cocoEval.summarize(catId=2, logger=logger)
-        # m_result = (result1+result2)/2
-        # result2 = cocoEval.summarize(catId=2)
-        results_dict = dict()
-        return results_dict
+            annType = ['segm','bbox','keypoints']
+            annType = annType[0]  # specify type here
+            cocoGt = COCO(validation_path)
+            cocoDt = cocoGt.loadRes(results_mask_2d_path)
+            cocoEval = COCOeval_(cocoGt, cocoDt, annType)
+            # cocoEval.params.imgIds  = imgIds
+            cocoEval.evaluate()
+            cocoEval.accumulate()
+            map = cocoEval.summarize(logger=logger)
+            # result = cocoEval.summarize(catId=[0,1], logger=logger)
+            result0 = cocoEval.summarize(catId=0, logger=logger)
+            result1 = cocoEval.summarize(catId=1, logger=logger)
+            result2 = cocoEval.summarize(catId=2, logger=logger)
+            # m_result = (result1+result2)/2
+            # result2 = cocoEval.summarize(catId=2)
+            results_dict = dict()
+            return results_dict
 
     def evaluate_semantic_3d(self, results, metric='seg', ignore_class=['unlab'],
                     logger=None, show=False, out_dir=None, pipeline=None, **kwargs):
@@ -601,7 +595,8 @@ class MwsisWaymoDataset(Custom3DDataset):
     def format_2d_mask(self, img_mask_preds, img_bboxes_preds, img_metas):
         pred_list = []
         if len(img_bboxes_preds) == 0:
-            img_bboxes_preds = [[[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1]] for _ in range(len(img_mask_preds))]
+            # img_bboxes_preds = [[[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1]] for _ in range(len(img_mask_preds))]
+            return None
         mask_args = [[img_mask_preds[i], img_bboxes_preds[i], img_metas[i]] for i in range(len(img_mask_preds))]
         if self.seg_format_worker == 0:
             results = []
@@ -614,13 +609,12 @@ class MwsisWaymoDataset(Custom3DDataset):
         return pred_list
 
     def format_2d_mask_one(self, mask_args):
-        # img_mask_preds is list[[car],[ped],[cyc]]
+        # img_mask_preds is list[[car], [ped], [cyc]]
         img_mask_preds, img_bboxes_preds, img_metas = mask_args
         filename = img_metas['filename']
-        split_path = filename.split('/')[-2:]
-        for p in range(len(split_path)):
-            split_path[p] = int(split_path[p])
-        image_id = split_path[0]*10+split_path[1]
+        id_ = int(re.search(r'(\d+)', filename.split('/')[-1]).group())
+        _id = int(re.search(r'image_(\d+)', filename).group(1))
+        image_id = id_ * 10 + _id
         out_preds = []
         for i in range(len(img_mask_preds)):
             for j, instance_mask in enumerate(img_mask_preds[i]):
