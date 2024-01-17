@@ -307,7 +307,7 @@ class LoadImages(object):
                     f'to_float32={self.to_float32}, '
                     f"color_type='{self.color_type}', "
                     f'file_client_args={self.file_client_args})')
-        return repr_str       
+        return repr_str
 
 
 @PIPELINES.register_module(force=True)
@@ -388,85 +388,31 @@ class LoadAnnos(LoadAnnotations):
 @PIPELINES.register_module()
 class LoadPseudoLabel:
     '''
-    load pseudo labels by the SPG, and then save to results['ccl_labels'].
+    load pseudo labels by the SPG, and then save to results['pseudo_label'].
     the loaded pseudo labels is preprocessed with code and soted local file.
     '''
     def __init__(self,
                  coord_type,
                  file_client_args,
-                 ccl_mode=None,
-                 load_ccl=False,
-                 local=True):
+                 pseudo_label_path):
         self.coord_type = coord_type
         self.file_client_args = file_client_args.copy()
         self.file_client = None
-        self.mode = ccl_mode
-        self.load_ccl = load_ccl
-        self.local = local
-    
+        self.pseudo_label_path = pseudo_label_path
+
     def load_pseudo_label(self, results):
-        # results['ccl_labels'] is the instance id assign by the SPG
-        # company
-        # TopLidar & InImages & PointsRangeFilter
-        pseudo_path = results['pts_info']['path']
-        if self.file_client is None:
+        if  self.file_client is None:
             self.file_client = mmcv.FileClient(**self.file_client_args)
-        label_bytes = self.file_client.get(pseudo_path)
-        pseudo_label = np.load(BytesIO(label_bytes))
-        results['pseudo_labels'] = pseudo_label
-        if self.mode is not None and self.load_ccl:
-            if self.mode == 'lwsis_ccl':
-                path = results['pts_info']['path']
-                path = path.split('/')
-                path = '{}/{}/{}'.format(path[0], 'ccl_mask', path[2])
-            elif self.mode == 'mwsis_ccl':
-                path = results['pts_info']['path']
-                path = path.split('/')
-                path = '{}/{}/{}'.format(path[0], 'mwsis_ccl', path[2])
-            ccl_bytes = self.file_client.get(path)
-            ccl_label = np.load(BytesIO(ccl_bytes))
-            # unassign[:, 0:2], assign[:, 2:4]
-            # assign and unassign indicate that different label assign methods are used
-            # Because we only use 2D boxes, we can't solve the problem of how to allocate overlapping boxes, 
-            # even though the SPG module can alleviate this problem
-            results['ccl_labels'] = ccl_label
-        return results
-
-    def load_pseudo_label_v2(self, results):
-
-        # not complete this code
-
-        # local
-        # load saved ccl results
-        # TopLidar & InImages & PointsRangeFilter
-
-        # pseudo_path = results['pts_info']['path']
-        # if self.file_client is None:
-        #     self.file_client = mmcv.FileClient(**self.file_client_args)
-        # label_bytes = self.file_client.get(pseudo_path)
-        # pseudo_label = np.load(BytesIO(label_bytes))
-        # results['pseudo_labels'] = pseudo_label
-        # if self.mode is not None and self.load_ccl:
-        #     if self.mode == 'lwsis_ccl':
-        #         path = results['pts_info']['path']
-        #         path = path.split('/')
-        #         path = '{}/{}/{}'.format(path[0], 'ccl_mask', path[2])
-        #     elif self.mode == 'mwsis_ccl':
-        #         path = results['pts_info']['path']
-        #         path = path.split('/')
-        #         path = '{}/{}/{}'.format(path[0], 'mwsis_ccl', path[2])
-        #     ccl_bytes = self.file_client.get(path)
-        #     ccl_label = np.load(BytesIO(ccl_bytes))
-        #     # no assign[:, 0:2], assign[:, 2:4]
-        #     results['ccl_labels'] = ccl_label
+        frame_id = results['frame_id']
+        path = f'{self.pseudo_label_path}/'+ f'{str(frame_id).zfill(7)}.npy'
+        pseudo_labels_bytes = self.file_client.get(path)
+        pseudo_labels = np.load(pseudo_labels_bytes)
+        # ring segment id = points[:, 0], mask flag = points[:, 1], spg results = points[:, [2, 3]]
+        results['pseudo_labels'] = pseudo_labels
         return results
 
     def __call__(self, results):
-        if self.local:
-            results = self.load_pseudo_label_v2(results)
-            return results
-        else:
-            results = self.load_pseudo_label(results)
+        results = self.load_pseudo_label(results)
         return results
 
 import os.path as osp

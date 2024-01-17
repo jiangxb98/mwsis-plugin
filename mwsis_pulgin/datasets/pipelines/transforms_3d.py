@@ -2050,7 +2050,7 @@ class FilterPointByMultiImage:
         self.training = training
         self.relative_threshold = relative_threshold
         self.use_run_seg = use_run_seg
-        self.only_img = only_img
+        self.only_img = only_img  # only use the image
         self.use_pseudo_label = use_pseudo_label
         self.use_collision = use_collision
         self.point_cloud_range = [-80, -80, -2, 80, 80, 4]
@@ -2062,13 +2062,15 @@ class FilterPointByMultiImage:
         self.only_img_points = only_img_points
 
     def filter_points(self, results):
-        points = results['points'].tensor.numpy()  # (N,16)
+        points = results['points'].tensor.numpy()  # (N, 16)
         top_mask = points[:, 6]==0
         points = points[top_mask]
         if results.get('pts_semantic_mask', None) is not None:
             results['pts_semantic_mask'] = results['pts_semantic_mask'][top_mask]
         if results.get('pts_instance_mask', None) is not None:
             results['pts_instance_mask'] = results['pts_instance_mask'][top_mask]
+        if 'pseudo_labels' in results.keys():
+            assert len(results['pseudo_labels']) == len(points)
         # points x,y,z,r,e,return_id,lidar_idx,range_dist,lidar_row,lidar_colunm,camid,camid,col1,col2,row1,row2
         in_mask = (points[:,10] != -1) | (points[:,11] != -1)
         # x,y,z,thanh(r),e, bg/fg mask, out/in img, points_inds,x,y,r,g,b 13
@@ -2078,6 +2080,7 @@ class FilterPointByMultiImage:
         new_points[:, 16][~in_mask] = 0
         new_points[:, 17] = 0
 
+        # Projection relation
         if self.use_augment:
             # resize project coords
             # 1.crop
@@ -2124,7 +2127,7 @@ class FilterPointByMultiImage:
                         pass
             # if crop filter the out img points
             if 'crop_coords' in results.keys():
-                in_mask_new = (new_points[:,10]!=-1) | (new_points[:,11]!=-1)
+                in_mask_new = (new_points[:, 10] != -1) | (new_points[:, 11] != -1)
                 new_points[:, 16][in_mask_new] = 1
                 new_points[:, 16][~in_mask_new] = 0
         else:
@@ -2134,18 +2137,19 @@ class FilterPointByMultiImage:
 
         if self.only_img_points:
             if results.get('pts_semantic_mask', None) is not None:
-                results['pts_semantic_mask'] = results['pts_semantic_mask'][new_points[:, 16]==1]
+                results['pts_semantic_mask'] = results['pts_semantic_mask'][new_points[:, 16] == 1]
             if results.get('pts_instance_mask', None) is not None:
-                results['pts_instance_mask'] = results['pts_instance_mask'][new_points[:, 16]==1]
-            new_points = new_points[new_points[:, 16]==1]
+                results['pts_instance_mask'] = results['pts_instance_mask'][new_points[:, 16] == 1]
+            new_points = new_points[new_points[:, 16] == 1]
+            if 'pseudo_labels' in results.keys():
+                results['pseudo_labels'] = results['pseudo_labels'][new_points[:, 16] == 1]
 
         points_class = get_points_type(self.coord_type)
-        results['points'] = points_class(new_points, points_dim=new_points.shape[-1])  # 实例化，LiDARPoints
+        results['points'] = points_class(new_points, points_dim=new_points.shape[-1])
 
-        if self.use_pseudo_label and 'pseudo_labels' in results.keys():
-            # if self.use_augment:
-            #     results['pseudo_labels'] = results['pseudo_labels'][in_mask_new]
-            assert len(new_points) == len(results['pseudo_labels'])
+        # this is old, discarded
+        # if self.use_pseudo_label and 'pseudo_labels' in results.keys():
+        #     assert len(new_points) == len(results['pseudo_labels'])
         return results
 
     def find_connected_componets_single_batch(self, points, dist):
@@ -2164,19 +2168,20 @@ class FilterPointByMultiImage:
         
         # use pseudo label directly
         if 'pseudo_labels' in results.keys():
-            if results['pseudo_labels'].shape[1] > 9:
-                mask = results['pseudo_labels'][:, 9]
-                points[:, 17] = mask
-                # not need
-                if self.use_collision and 'pseudo_labels' in results.keys():
-                    # discarded
-                    collision = results['pseudo_labels'][:, 4][:, None].astype(np.float32)
-                    points = np.concatenate((points, collision), axis=1)
-                else:
-                    points = np.concatenate((points, np.zeros((points.shape[0], 1)).astype(np.float32)), axis=1)
-                points_class = get_points_type(self.coord_type)
-                results['points'] = points_class(points, points_dim=points.shape[-1])  # 实例化，LiDARPoints N,10
-                return results
+            # if results['pseudo_labels'].shape[1] > 9:
+            #     mask = results['pseudo_labels'][:, 9]
+            #     points[:, 17] = mask
+            #     # not need
+            #     if self.use_collision and 'pseudo_labels' in results.keys():
+            #         # discarded
+            #         collision = results['pseudo_labels'][:, 4][:, None].astype(np.float32)
+            #         points = np.concatenate((points, collision), axis=1)
+            #     else:
+            #         points = np.concatenate((points, np.zeros((points.shape[0], 1)).astype(np.float32)), axis=1)
+            #     points_class = get_points_type(self.coord_type)
+            #     results['points'] = points_class(points, points_dim=points.shape[-1])
+            points = np.concatenate((points, np.zeros((points.shape[0], 1)).astype(np.float32)), axis=1)
+            return results
 
         # filter points using the ring segment, ccl algorithm is implemented in model forward propagation
         gt_bboxes = results['gt_bboxes']
@@ -2495,12 +2500,21 @@ class FilterPointByMultiImage:
             return False
             
     def load_ring_segment_id(self, results):
+        # old, discarded
+        # points = results['points'].tensor.numpy()
+        # ring_segment_id = results['pseudo_labels'][:, 0].reshape(-1, 1).astype(np.float64)
+        # assert len(ring_segment_id) == len(points)
+        # points = np.concatenate((points, ring_segment_id), axis=1)
+        # points_class = get_points_type(self.coord_type)
+        # results['points'] = points_class(points, points_dim=points.shape[-1])
+
         points = results['points'].tensor.numpy()
-        run_id = results['pseudo_labels'][:, 0].reshape(-1, 1).astype(np.float64)
-        assert len(run_id) == len(points)
-        points = np.concatenate((points, run_id), axis=1)
+        ring_segment_id = results['pseudo_labels'][:, 1].reshape(-1, 1).astype(np.float64)
+        assert len(ring_segment_id) == len(points)
+        points = np.concatenate((points, ring_segment_id), axis=1)
         points_class = get_points_type(self.coord_type)
         results['points'] = points_class(points, points_dim=points.shape[-1])
+
         return results
     
     def __call__(self, results):
@@ -3426,6 +3440,7 @@ class FilterPoints:
     def __init__(self, 
                 coord_type='LIDAR',
                 num_classes=3,
+                LoadHistoryLabel=True,
                 only_img_points=True):  # only load points map to 2D images
         self.coord_type = coord_type
         self.num_classes = num_classes
@@ -3434,9 +3449,10 @@ class FilterPoints:
     def filter_points(self, results):
         # filter points which is obtain by top lidar
         # may not remove other points get better results?
-        points = results['points'].tensor.numpy()  # (N,16)
+        points = results['points'].tensor.numpy()  # (N, 16)
         top_mask = points[:, 6] == 0
         points = points[top_mask] # top lidar
+        # Note: waymo only top lidar has the panseg label
         if results.get('pts_semantic_mask', None) is not None:
             results['pts_semantic_mask'] = results['pts_semantic_mask'][top_mask]
         if results.get('pts_instance_mask', None) is not None:
@@ -3454,7 +3470,7 @@ class FilterPoints:
         points_class = get_points_type(self.coord_type)
         results['points'] = points_class(points, points_dim=points.shape[-1])  # 实例化，LiDARPoints
 
-        # filter pseudo-labels
+        # filter pseudo labels
         if 'pseudo_labels' in results.keys():
             pseudo_labels = results['pseudo_labels']
             pseudo_labels = np.stack(
@@ -3480,9 +3496,41 @@ class FilterPoints:
                 results['pseudo_labels'] = new_pseudo_labels
 
         return results
-    
+
+    def filter_points_v2(self, results):
+        # filter points which is obtain by top lidar
+        # may not remove other points get better results?
+        points = results['points'].tensor.numpy()  # (N, 16)
+        top_mask = points[:, 6] == 0
+        points = points[top_mask] # top lidar
+        # Note: waymo only top lidar has the panseg label
+        if results.get('pts_semantic_mask', None) is not None:
+            results['pts_semantic_mask'] = results['pts_semantic_mask'][top_mask]
+        if results.get('pts_instance_mask', None) is not None:
+            results['pts_instance_mask'] = results['pts_instance_mask'][top_mask]
+        
+        if 'pseudo_labels' in results.keys():
+            # The pseudo labels of the points out of range have been removed in advance (when it generated by the SPG)
+            assert len(results['pseudo_labels']) == len(points)
+
+        # points x,y,z,r,e,return_id,lidar_idx,range_dist,lidar_row,lidar_colunm,camid,camid,col1,col2,row1,row2
+        if self.only_img_points:
+            in_mask = (points[:,10] !=- 1) | (points[:,11] != -1)
+            points = points[in_mask]
+            if results.get('pts_semantic_mask', None) is not None:
+                results['pts_semantic_mask'] = results['pts_semantic_mask'][in_mask]
+            if results.get('pts_instance_mask', None) is not None:
+                results['pts_instance_mask'] = results['pts_instance_mask'][in_mask]
+            if 'pseudo_labels' in results.keys():
+                results['pseudo_labels'] = results['pseudo_labels'][in_mask]
+
+        points_class = get_points_type(self.coord_type)
+        results['points'] = points_class(points, points_dim=points.shape[-1])
+        return results
+
     def __call__(self, results):
-        results = self.filter_points(results)
+        # results = self.filter_points(results)
+        results = self.filter_points_v2(results)
         return results
 
 @PIPELINES.register_module(force=True)
@@ -3496,12 +3544,11 @@ class LoadHistoryLabel:
                 use_history_labels=False,
                 num_classes=3,
                 history_nums=4,
-                only_img_points=True):  # only load points map to 2D images
+                ):  # only load points map to 2D images
         self.coord_type = coord_type
         self.use_history_labels = use_history_labels
         self.num_classes = num_classes
         self.history_nums = history_nums
-        self.only_img_points = only_img_points
 
     def load_history_labels(self, results):
         points = results['points'].tensor.numpy()
@@ -3543,8 +3590,6 @@ class LoadHistoryLabel:
     def __call__(self, results):
         if self.use_history_labels:
             results = self.load_history_labels(results)
-        if self.use_sam_labels:
-            results = self.load_sam_labels(results)
         return results
 
 @PIPELINES.register_module(force=True)
