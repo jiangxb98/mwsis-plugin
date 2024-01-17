@@ -15,11 +15,11 @@ def if_connect(pts1, pts2, times=1, max_dist=50):
         return False
 
 def range_seg_ccl(points):
-    range_seg_inds = np.ones((points.shape[0])).astype(np.float32)*-1
+    range_seg_inds = np.ones((points.shape[0])).astype(np.float32) * -1
     # top_lidar points mask two return all use
-    top_points_mask = (points[:,6]==0)
+    top_points_mask = (points[:, 6]==0)
     top_points  = points[top_points_mask]
-    points_row = points[top_points_mask][:,8]
+    points_row = points[top_points_mask][:, 8]
     row_set, inv_inds = np.unique(points_row, return_inverse=True)
     row_set = row_set.astype(np.int)
     clusters_id_all = []
@@ -30,7 +30,7 @@ def range_seg_ccl(points):
             clusters_id_all.append(np.ones((2, column_nums))*-1)
             continue
 
-        # 第r行的点云深度排序(2,2650)
+        # 第r行的点云深度排序(2, 2650)
         range_dist = np.ones((2, column_nums))*-1
         # 第一次回波
         fir_return_points = top_points[(top_points[:,5]==0) & (top_points[:,8]==r)]
@@ -126,7 +126,7 @@ def range_seg_ccl(points):
     c, h, w = top_points[:,5].astype(np.int), top_points[:,8].astype(np.int), top_points[:,9].astype(np.int)
     range_seg_inds[top_points_mask] = clusters_id_all[(c,h,w)]
 
-    points = np.concatenate((points, range_seg_inds.reshape(points.shape[0],1)), axis=1)
+    points = np.concatenate((points, range_seg_inds.reshape(points.shape[0], 1)), axis=1)
 
     return points
 
@@ -142,7 +142,7 @@ def find_connected_componets_single_batch(points, dist):
     return c_inds
 
 def get_in_2d_box_points(points_, gt_bboxes, labels):
-    dist=(0.6,0.1,0.4)
+    dist=(0.6, 0.1, 0.4)
     assert len(gt_bboxes)==len(labels)
     gt_mask_all = np.zeros((points_.shape[0])).astype(np.bool)
     for i in range(len(gt_bboxes)):
@@ -158,7 +158,7 @@ def get_in_2d_box_points(points_, gt_bboxes, labels):
                         (points_[:,11]==i)))
             gt_mask = gt_mask1 | gt_mask2
             gt_mask_all = gt_mask_all | gt_mask
-    points_[:,17][gt_mask_all] = 1  # 在2D box内的点大部分是前景点，后面进行筛选
+    points_[:, 17][gt_mask_all] = 1  # 在2D box内的点大部分是前景点，后面进行筛选
 
     box_flag = np.zeros((points_.shape[0],3)).astype(np.float32) # box_flag[:,2]是个标志位，表示第一个是否被填充
     out_box_points = points_[~gt_mask_all]
@@ -223,8 +223,8 @@ def get_in_2d_box_points(points_, gt_bboxes, labels):
             # # 第一个位置又box id的地方不能赋值，往第二个里放
             # c_mask_2 = box_flag[:,2][in_box_mask] != 0
             # box_flag[:,1][in_box_mask] = (c_mask&(~c_mask_2)).astype(np.float32) * (i*1000+j+1)
-    box_flag[:,0:2] = box_flag[:,0:2] - 1
-    points_ = np.concatenate((points_, box_flag[:,0:2]),axis=1)
+    box_flag[:, 0:2] = box_flag[:, 0:2] - 1
+    points_ = np.concatenate((points_, box_flag[:, 0:2]), axis=1)
 
     return points_
 
