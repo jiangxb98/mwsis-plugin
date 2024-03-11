@@ -31,6 +31,16 @@ pip3 install torch==1.8.2 torchvision==0.9.2 torchaudio==0.8.2 --extra-index-url
 # install mmdet3d==1.0.0rc5 dependency
 pip install mmcv-full==1.6.0 mmsegmentation==0.27.0 mmdet==2.25.1 spconv-cu111 open3d minio==7.1.11 pymongo==3.12.3 waymo-open-dataset-tf-2-6-0==1.4.9
 
+# install mmdet3d
+git clone https://github.com/open-mmlab/mmdetection3d.git
+cd mmdetection3d
+git checkout v1.0.0rc5
+pip install -e .
+
+# clone the mwsis repo
+git clone https://github.com/jiangxb98/mwsis-plugin.git
+cd mwsis-plugin
+
 # install pairwise_loss
 cd boxinst-plugin-main
 pip install -e .
