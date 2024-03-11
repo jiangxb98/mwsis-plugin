@@ -257,7 +257,7 @@ checkpoint_config = dict(
     max_keep_ckpts=20)
 
 custom_imports = dict(
-    imports=['mwsis.mwsis_pulgin'],
+    imports=['mwsis-plugin.mwsis_pulgin'],
     allow_failed_imports=False)
 
 # multi-task optimizer config
