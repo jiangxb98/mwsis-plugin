@@ -579,6 +579,8 @@ class MwsisWaymoDataset(Custom3DDataset):
         out_preds = []
         for i in range(len(pts_mask_preds)):
             for j, instance_mask in enumerate(pts_mask_preds[i]):
+                if float(seg_socres[i][j]) == 0:
+                    continue
                 rle = instance_mask
                 # instance_mask = np.asfortranarray(instance_mask)
                 # rle = mask.encode(instance_mask)

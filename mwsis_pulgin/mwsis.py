@@ -1435,6 +1435,12 @@ class MWSIS(Base3DDetector):
                 xyz_mask = results_list[i]['segment3d'] == j
                 if xyz_mask.sum() == 0:
                     tmp_inds.append(0)
+                    points_id = torch.zeros((points_shape[0]), dtype=torch.int)
+                    mask_cls.append(points_id.view(1, -1))
+                    mask_cls_scores.append(np.array(0))
+                    mask_cls = torch.stack(mask_cls)
+                    mask_list.append(mask_cls)
+                    mask_scores_list.append(mask_cls_scores)
                     continue
                 xyz = top_points[:,0:3][xyz_mask]
                 offsets = results_list[i]['offsets'][xyz_mask].to(xyz.device) # cuda
@@ -1473,8 +1479,9 @@ class MWSIS(Base3DDetector):
                 #                 1,
                 #                 1)
                 # c_inds = cluster_inds[0 : nums]
-
-                c_inds = c_inds + 1 + tmp_inds[j]
+                c_inds = c_inds + 1
+                tmp_mask = c_inds!=0
+                c_inds[tmp_mask] = c_inds[tmp_mask] + tmp_inds[j]
                 tmp_inds.append(c_inds.max())
                 sets, _, counts = torch.unique(c_inds, return_counts=True, return_inverse=True)
                 for ci in range(len(counts)):
